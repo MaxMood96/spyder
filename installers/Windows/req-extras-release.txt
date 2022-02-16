@@ -11,7 +11,7 @@ yapf
 
 # Scientific packages (for Same as Spyder)
 # Ping NumPy version to 1.19.3 do message error on Windows
-numpy==1.19.3
+numpy==1.22.0rc1
 scipy
 pandas
 matplotlib
