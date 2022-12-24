@@ -4,3 +4,4 @@ ipython>=7.31.1,<8
 jupyter_client>=7.3.4,<8
 pyzmq>=22.1.0
 wurlitzer>=1.0.3
+setuptools>=65.5.1 # not directly required, pinned by Snyk to avoid a vulnerability
