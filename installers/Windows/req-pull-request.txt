@@ -4,3 +4,4 @@ spyder-terminal>=1.2.2
 # Spyder external dependencies (spyder-kernels and qdarkstyle)
 ./external-deps/spyder-kernels
 ./external-deps/qdarkstyle
+ipython>=8.10.0 # not directly required, pinned by Snyk to avoid a vulnerability
