@@ -5,3 +5,4 @@ jupyter_client>=7.4.9,<9
 pyzmq>=22.1.0
 wurlitzer>=1.0.3
 pyxdg>=0.26
+tornado>=6.3.2 # not directly required, pinned by Snyk to avoid a vulnerability
