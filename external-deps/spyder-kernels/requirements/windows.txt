@@ -3,3 +3,4 @@ ipykernel>=6.23.2,<7
 ipython>=8.12.2,<9
 jupyter_client>=7.4.9,<9
 pyzmq>=22.1.0
+tornado>=6.3.3 # not directly required, pinned by Snyk to avoid a vulnerability
