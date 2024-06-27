@@ -49,8 +49,7 @@ class IconManager():
 
         self.ICONS_BY_EXTENSION = {}
 
-        # Magnification factors for attribute icons
-        # per platform
+        # Magnification factors for attribute icons per platform
         if sys.platform.startswith('linux'):
             self.BIG_ATTR_FACTOR = 1.0
             self.SMALL_ATTR_FACTOR = 0.9
@@ -143,7 +142,6 @@ class IconManager():
             'arrow-step-in':           [('mdi.debug-step-into',), {'color': SpyderPalette.ICON_2}],
             'arrow-step-out':          [('mdi.debug-step-out',), {'color': SpyderPalette.ICON_2}],
             'stop_debug':              [('mdi.stop',), {'color': SpyderPalette.ICON_2}],
-            'enter_debug':             [('mdi.location-enter',), {'color': SpyderPalette.ICON_2}],
             'run':                     [('mdi.play',), {'color': SpyderPalette.ICON_3}],
             'todo_list':               [('mdi.check-bold',), {'color': self.MAIN_FG_COLOR}],
             'wng_list':                [('mdi.alert',), {'options': [{'color': SpyderPalette.COLOR_WARN_2, 'color_disabled': SpyderPalette.COLOR_TEXT_4}]}],
@@ -378,6 +376,9 @@ class IconManager():
             # --- Remote connections ----------------------------------------------
             'add_server':              [('mdi.server-plus',), {'color': self.MAIN_FG_COLOR}],
             'remote_server':           [('mdi.server-network',), {'color': self.MAIN_FG_COLOR}],
+            # --- For our collapsed widget
+            'collapsed':               [('mdi.chevron-right',), {'color': self.MAIN_FG_COLOR, 'scale_factor': 1.3}],
+            'expanded':                [('mdi.chevron-down',), {'color': self.MAIN_FG_COLOR, 'scale_factor': 1.3}],
         }
 
     def get_std_icon(self, name, size=None):

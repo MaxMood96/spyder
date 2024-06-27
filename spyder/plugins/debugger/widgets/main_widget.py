@@ -20,8 +20,6 @@ import qstylizer.style
 from spyder.api.config.decorators import on_conf_change
 from spyder.api.shellconnect.main_widget import ShellConnectMainWidget
 from spyder.api.translations import _
-from spyder.config.manager import CONF
-from spyder.config.gui import get_color_scheme
 from spyder.plugins.debugger.widgets.framesbrowser import (
     FramesBrowser, FramesBrowserState)
 from spyder.plugins.debugger.widgets.breakpoint_table_view import (
@@ -37,6 +35,7 @@ class DebuggerWidgetActions:
     Search = 'search'
     Inspect = 'inspect'
     EnterDebug = 'enter_debug'
+    InterrupAndDebug = "interrupt_and_debug"
     Next = "next"
     Continue = "continue"
     Step = "step"
@@ -62,7 +61,13 @@ class DebuggerWidgetOptionsMenuSections:
 
 
 class DebuggerWidgetMainToolBarSections:
-    Main = 'main_section'
+    Control = 'control_section'
+    InteractWithConsole = "interact_with_console_section"
+    Extras = "extras_section"
+
+
+class DebuggerWidgetToolbarItems:
+    ToolbarStretcher = 'toolbar_stretcher'
 
 
 class DebuggerWidgetMenus:
@@ -74,17 +79,10 @@ class DebuggerContextMenuSections:
     Locals = 'locals_section'
 
 
-class DebuggerContextMenuActions:
-    ViewLocalsAction = 'view_locals_action'
-
-
 # =============================================================================
 # ---- Widgets
 # =============================================================================
 class DebuggerWidget(ShellConnectMainWidget):
-
-    # PluginMainWidget class constants
-    ENABLE_SPINNER = True
 
     # Signals
     sig_edit_goto = Signal(str, int, str)
@@ -100,18 +98,6 @@ class DebuggerWidget(ShellConnectMainWidget):
         Cursor starting row position.
     word: str
         Word to select on given row.
-    """
-
-    sig_show_namespace = Signal(dict, object)
-    """
-    Show the namespace
-
-    Parameters
-    ----------
-    namespace: dict
-        A namespace view created by spyder_kernels
-    shellwidget: object
-        The shellwidget the request originated from
     """
 
     sig_breakpoints_saved = Signal()
@@ -169,8 +155,6 @@ class DebuggerWidget(ShellConnectMainWidget):
         super().__init__(name, plugin, parent, set_layout=False)
 
         # Widgets
-        self.context_menu = None
-        self.empty_context_menu = None
         self.breakpoints_table = BreakpointTableView(self, {})
         self.breakpoints_table.hide()
 
@@ -182,7 +166,7 @@ class DebuggerWidget(ShellConnectMainWidget):
         self.splitter.addWidget(self._stack)
         self.splitter.addWidget(self.breakpoints_table)
         self.splitter.setContentsMargins(0, 0, 0, 0)
-        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setChildrenCollapsible(True)
 
         # This is necessary so that the border radius is maintained when
         # showing/hiding the breakpoints table
@@ -251,9 +235,17 @@ class DebuggerWidget(ShellConnectMainWidget):
 
         enter_debug_action = self.create_action(
             DebuggerWidgetActions.EnterDebug,
-            text=_("Interrupt execution and enter debugger"),
-            icon=self.create_icon('enter_debug'),
-            triggered=self.enter_debug,
+            text=_("Start debugging after last error"),
+            icon=self.create_icon("postmortem_debug"),
+            triggered=self.enter_debugger_after_exception,
+            register_shortcut=True,
+        )
+
+        interrupt_and_debug_action = self.create_action(
+            DebuggerWidgetActions.InterrupAndDebug,
+            text=_("Interrupt execution and start the debugger"),
+            icon=self.create_icon("interrupt_and_debug"),
+            triggered=self.interrupt_and_debug,
             register_shortcut=True,
         )
 
@@ -299,11 +291,13 @@ class DebuggerWidget(ShellConnectMainWidget):
 
         goto_cursor_action = self.create_action(
             DebuggerWidgetActions.GotoCursor,
-            text=_("Show in the editor the file and line where the debugger "
-                   "is placed"),
-            icon=self.create_icon('fromcursor'),
+            text=_(
+                "Show the file and line where the debugger is placed in the "
+                "editor"
+            ),
+            icon=self.create_icon("go_to_editor"),
             triggered=self.goto_current_step,
-            register_shortcut=True
+            register_shortcut=True,
         )
 
         self.create_action(
@@ -340,18 +334,10 @@ class DebuggerWidget(ShellConnectMainWidget):
         toggle_breakpoints_action = self.create_action(
             DebuggerBreakpointActions.ToggleBreakpointsTable,
             _("Show breakpoints"),
-            icon=self.create_icon('breakpoint_big'),
+            icon=self.create_icon("list_breakpoints"),
             toggled=True,
             initial=self.get_conf('breakpoints_table_visible'),
             option='breakpoints_table_visible'
-        )
-
-        # ---- Context menu actions
-        self.view_locals_action = self.create_action(
-            DebuggerContextMenuActions.ViewLocalsAction,
-            _("View variables with the Variable Explorer"),
-            icon=self.create_icon('outline_explorer'),
-            triggered=self.view_item_locals
         )
 
         # Options menu
@@ -365,40 +351,43 @@ class DebuggerWidget(ShellConnectMainWidget):
 
         # Main toolbar
         main_toolbar = self.get_main_toolbar()
-        for item in [next_action,
-                     continue_action,
-                     step_action,
-                     return_action,
-                     stop_action,
-                     goto_cursor_action,
-                     enter_debug_action,
-                     inspect_action,
-                     search_action,
-                     toggle_breakpoints_action]:
+        for item in [
+            next_action,
+            continue_action,
+            step_action,
+            return_action,
+            stop_action,
+        ]:
             self.add_item_to_toolbar(
                 item,
                 toolbar=main_toolbar,
-                section=DebuggerWidgetMainToolBarSections.Main,
+                section=DebuggerWidgetMainToolBarSections.Control,
             )
 
-        # ---- Context menu to show when there are frames present
-        self.context_menu = self.create_menu(
-            DebuggerWidgetMenus.PopulatedContextMenu)
-        for item in [self.view_locals_action, inspect_action]:
-            self.add_item_to_menu(
+        for item in [
+            enter_debug_action,
+            interrupt_and_debug_action,
+            inspect_action,
+        ]:
+            self.add_item_to_toolbar(
                 item,
-                menu=self.context_menu,
-                section=DebuggerContextMenuSections.Locals,
+                toolbar=main_toolbar,
+                section=DebuggerWidgetMainToolBarSections.InteractWithConsole,
             )
 
-        # ---- Context menu when the debugger is empty
-        self.empty_context_menu = self.create_menu(
-            DebuggerWidgetMenus.EmptyContextMenu)
-        for item in [inspect_action]:
-            self.add_item_to_menu(
+        stretcher = self.create_stretcher(
+            DebuggerWidgetToolbarItems.ToolbarStretcher
+        )
+        for item in [
+            goto_cursor_action,
+            search_action,
+            stretcher,
+            toggle_breakpoints_action,
+        ]:
+            self.add_item_to_toolbar(
                 item,
-                menu=self.empty_context_menu,
-                section=DebuggerContextMenuSections.Locals,
+                toolbar=main_toolbar,
+                section=DebuggerWidgetMainToolBarSections.Extras,
             )
 
     def update_actions(self):
@@ -406,16 +395,20 @@ class DebuggerWidget(ShellConnectMainWidget):
         try:
             search_action = self.get_action(DebuggerWidgetActions.Search)
             enter_debug_action = self.get_action(
-                DebuggerWidgetActions.EnterDebug)
+                DebuggerWidgetActions.EnterDebug
+            )
+            interrupt_and_debug_action = self.get_action(
+                DebuggerWidgetActions.InterrupAndDebug
+            )
             inspect_action = self.get_action(
-                DebuggerWidgetActions.Inspect)
+                DebuggerWidgetActions.Inspect
+            )
 
             widget = self.current_widget()
             if self.is_current_widget_empty() or widget is None:
                 search_action.setEnabled(False)
-                show_enter_debugger = False
+                post_mortem = False
                 executing = False
-                is_inspecting = False
                 pdb_prompt = False
             else:
                 search_action.setEnabled(True)
@@ -423,13 +416,11 @@ class DebuggerWidget(ShellConnectMainWidget):
                 post_mortem = widget.state == FramesBrowserState.Error
                 sw = widget.shellwidget
                 executing = sw._executing
-                show_enter_debugger = post_mortem or executing
-                is_inspecting = widget.state == FramesBrowserState.Inspect
                 pdb_prompt = sw.is_waiting_pdb_input()
 
-            enter_debug_action.setEnabled(show_enter_debugger)
+            enter_debug_action.setEnabled(post_mortem and not executing)
+            interrupt_and_debug_action.setEnabled(executing)
             inspect_action.setEnabled(executing)
-            self.context_menu.setEnabled(is_inspecting)
 
             for action_name in [
                     DebuggerWidgetActions.Next,
@@ -465,31 +456,24 @@ class DebuggerWidget(ShellConnectMainWidget):
         if value:
             self.breakpoints_table.show()
             action.setToolTip(_("Hide breakpoints"))
+            action.setText(_("Hide breakpoints"))
             self._update_stylesheet(is_table_shown=True)
-            self._stack.setMinimumWidth(450)
         else:
             self.breakpoints_table.hide()
             action.setToolTip(_("Show breakpoints"))
+            action.setText(_("Show breakpoints"))
             self._update_stylesheet(is_table_shown=False)
-            self._stack.setMinimumWidth(100)
 
     # ---- ShellConnectMainWidget API
     # ------------------------------------------------------------------------
     def create_new_widget(self, shellwidget):
         """Create a new widget."""
-        color_scheme = get_color_scheme(
-            CONF.get('appearance', 'selected'))
-        widget = FramesBrowser(
-            self,
-            shellwidget=shellwidget,
-            color_scheme=color_scheme
-        )
+        widget = FramesBrowser(self, shellwidget=shellwidget)
 
         widget.sig_edit_goto.connect(self.sig_edit_goto)
         widget.sig_hide_finder_requested.connect(self.hide_finder)
         widget.sig_update_actions_requested.connect(self.update_actions)
 
-        widget.sig_show_namespace.connect(self.sig_show_namespace)
         shellwidget.sig_prompt_ready.connect(widget.clear_if_needed)
         shellwidget.sig_pdb_prompt_ready.connect(widget.clear_if_needed)
 
@@ -504,12 +488,7 @@ class DebuggerWidget(ShellConnectMainWidget):
             widget.on_config_kernel)
 
         widget.setup()
-        widget.set_context_menu(
-            self.context_menu,
-            self.empty_context_menu
-        )
 
-        widget.results_browser.view_locals_action = self.view_locals_action
         self.sig_breakpoints_saved.connect(widget.set_breakpoints)
 
         shellwidget.sig_pdb_state_changed.connect(self.sig_pdb_state_changed)
@@ -533,8 +512,6 @@ class DebuggerWidget(ShellConnectMainWidget):
         widget.sig_update_actions_requested.disconnect(self.update_actions)
 
         shellwidget = widget.shellwidget
-
-        widget.sig_show_namespace.disconnect(self.sig_show_namespace)
 
         try:
             shellwidget.sig_prompt_ready.disconnect(widget.clear_if_needed)
@@ -625,16 +602,22 @@ class DebuggerWidget(ShellConnectMainWidget):
         action = self.get_action(DebuggerWidgetActions.Search)
         action.setChecked(False)
 
-    def view_item_locals(self):
-        """Request to view item locals."""
-        self.current_widget().results_browser.view_item_locals()
+    def enter_debugger_after_exception(self):
+        """Enter the debugger after an exception."""
+        widget = self.current_widget()
+        if widget is None:
+            return
 
-    def enter_debug(self):
+        # Enter the debugger
+        sw = widget.shellwidget
+        if widget.state == FramesBrowserState.Error:
+            # Debug the last exception
+            sw.execute("%debug")
+            return
+
+    def interrupt_and_debug(self):
         """
-        Enter the debugger.
-
         If the shell is executing, interrupt execution and enter debugger.
-        If an exception took place, run post mortem.
         """
         widget = self.current_widget()
         if widget is None:
@@ -650,11 +633,6 @@ class DebuggerWidget(ShellConnectMainWidget):
                 )
 
             sw.call_kernel(interrupt=True).request_pdb_stop()
-            return
-
-        if widget.state == FramesBrowserState.Error:
-            # Debug the last exception
-            sw.execute("%debug")
             return
 
     def capture_frames(self):
@@ -746,17 +724,17 @@ class DebuggerWidget(ShellConnectMainWidget):
     def _update_splitter_widths(self, base_width):
         """
         Update the splitter widths to provide the breakpoints table with a
-        fixed minimum width.
+        reasonable initial width.
 
         Parameters
         ----------
         base_width: int
-            The available splitter width.
+            The available widget width.
         """
-        if (base_width / 3) > self.breakpoints_table.MIN_WIDTH:
-            table_width = base_width / 3
+        if (base_width // 3) > self.breakpoints_table.MIN_INITIAL_WIDTH:
+            table_width = base_width // 3
         else:
-            table_width = self.breakpoints_table.MIN_WIDTH
+            table_width = self.breakpoints_table.MIN_INITIAL_WIDTH
 
         if base_width - table_width > 0:
             self.splitter.setSizes([base_width - table_width, table_width])

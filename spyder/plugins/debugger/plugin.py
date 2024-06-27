@@ -33,7 +33,7 @@ from spyder.plugins.run.api import (
     RunConfiguration, ExtendedRunExecutionParameters, RunExecutor, run_execute,
     RunContext, RunResult)
 from spyder.plugins.toolbar.api import ApplicationToolbars
-from spyder.plugins.ipythonconsole.widgets.config import IPythonConfigOptions
+from spyder.plugins.ipythonconsole.widgets.run_conf import IPythonConfigOptions
 from spyder.plugins.editor.api.run import CellRun, SelectionRun
 
 
@@ -42,7 +42,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
 
     NAME = 'debugger'
     REQUIRES = [Plugins.IPythonConsole, Plugins.Preferences, Plugins.Run]
-    OPTIONAL = [Plugins.Editor, Plugins.MainMenu, Plugins.VariableExplorer]
+    OPTIONAL = [Plugins.Editor, Plugins.MainMenu]
     TABIFY = [Plugins.VariableExplorer, Plugins.Help]
     WIDGET_CLASS = DebuggerWidget
     CONF_SECTION = NAME
@@ -80,15 +80,9 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             'origin': self.NAME,
             'extension': 'py',
             'contexts': [
-                {
-                    'name': 'File'
-                },
-                {
-                    'name': 'Cell'
-                },
-                {
-                    'name': 'Selection'
-                },
+                {'name': 'File'},
+                {'name': 'Cell'},
+                {'name': 'Selection'},
             ]
         }
 
@@ -96,24 +90,16 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             'origin': self.NAME,
             'extension': 'ipy',
             'contexts': [
-                {
-                    'name': 'File'
-                },
-                {
-                    'name': 'Cell'
-                },
-                {
-                    'name': 'Selection'
-                },
+                {'name': 'File'},
+                {'name': 'Cell'},
+                {'name': 'Selection'},
             ]
         }
 
         self.executor_configuration = [
             {
                 'input_extension': 'py',
-                'context': {
-                    'name': 'File'
-                },
+                'context': {'name': 'File'},
                 'output_formats': [],
                 'configuration_widget': IPythonConfigOptions,
                 'requires_cwd': True,
@@ -121,9 +107,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             },
             {
                 'input_extension': 'ipy',
-                'context': {
-                    'name': 'File'
-                },
+                'context': {'name': 'File'},
                 'output_formats': [],
                 'configuration_widget': IPythonConfigOptions,
                 'requires_cwd': True,
@@ -131,9 +115,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             },
             {
                 'input_extension': 'py',
-                'context': {
-                    'name': 'Cell'
-                },
+                'context': {'name': 'Cell'},
                 'output_formats': [],
                 'configuration_widget': None,
                 'requires_cwd': True,
@@ -141,9 +123,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             },
             {
                 'input_extension': 'ipy',
-                'context': {
-                    'name': 'Cell'
-                },
+                'context': {'name': 'Cell'},
                 'output_formats': [],
                 'configuration_widget': None,
                 'requires_cwd': True,
@@ -151,9 +131,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             },
             {
                 'input_extension': 'py',
-                'context': {
-                    'name': 'Selection'
-                },
+                'context': {'name': 'Selection'},
                 'output_formats': [],
                 'configuration_widget': None,
                 'requires_cwd': True,
@@ -161,9 +139,7 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             },
             {
                 'input_extension': 'ipy',
-                'context': {
-                    'name': 'Selection'
-                },
+                'context': {'name': 'Selection'},
                 'output_formats': [],
                 'configuration_widget': None,
                 'requires_cwd': True,
@@ -306,16 +282,6 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
             if action in editor.get_widget().pythonfile_dependent_actions:
                 editor.get_widget().pythonfile_dependent_actions.remove(action)
 
-    @on_plugin_available(plugin=Plugins.VariableExplorer)
-    def on_variable_explorer_available(self):
-        self.get_widget().sig_show_namespace.connect(
-            self._show_namespace_in_variable_explorer)
-
-    @on_plugin_teardown(plugin=Plugins.VariableExplorer)
-    def on_variable_explorer_teardown(self):
-        self.get_widget().sig_show_namespace.disconnect(
-            self._show_namespace_in_variable_explorer)
-
     @on_plugin_available(plugin=Plugins.MainMenu)
     def on_main_menu_available(self):
         mainmenu = self.get_plugin(Plugins.MainMenu)
@@ -374,18 +340,6 @@ class Debugger(SpyderDockablePlugin, ShellConnectPluginMixin, RunExecutor):
         # Prevent keyboard input from accidentally entering the
         # editor during repeated, rapid entry of debugging commands.
         editor.load(fname, lineno, processevents=False)
-
-    def _show_namespace_in_variable_explorer(self, namespace, shellwidget):
-        """
-        Find the right variable explorer widget and show the namespace.
-
-        This should only be called when there is a Variable explorer
-        """
-        variable_explorer = self.get_plugin(Plugins.VariableExplorer)
-        if variable_explorer is None:
-            return
-        nsb = variable_explorer.get_widget_for_shellwidget(shellwidget)
-        nsb.process_remote_view(namespace)
 
     def _is_python_editor(self, codeeditor):
         """Check if the editor is a python editor."""
