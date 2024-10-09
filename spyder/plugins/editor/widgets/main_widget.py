@@ -29,7 +29,7 @@ from qtpy.QtCore import QByteArray, Qt, Signal, Slot, QDir
 from qtpy.QtGui import QTextCursor
 from qtpy.QtPrintSupport import QAbstractPrintDialog, QPrintDialog, QPrinter
 from qtpy.QtWidgets import (QAction, QActionGroup, QApplication, QDialog,
-                            QFileDialog, QInputDialog, QSplitter, QToolBar,
+                            QFileDialog, QInputDialog, QSplitter,
                             QVBoxLayout, QWidget)
 
 # Local imports
@@ -43,7 +43,7 @@ from spyder.plugins.editor.api.panel import Panel
 from spyder.py3compat import qbytearray_to_str, to_text_string
 from spyder.utils import encoding, programs, sourcecode
 from spyder.utils.icon_manager import ima
-from spyder.utils.qthelpers import create_action, add_actions
+from spyder.utils.qthelpers import create_action
 from spyder.utils.misc import getcwd_or_home
 from spyder.widgets.findreplace import FindReplace
 from spyder.plugins.editor.api.run import (
@@ -309,7 +309,6 @@ class EditorMainWidget(PluginMainWidget):
 
         self.file_dependent_actions = []
         self.pythonfile_dependent_actions = []
-        self.dock_toolbar_actions = None
         self.stack_menu_actions = None
         self.checkable_actions = {}
 
@@ -883,13 +882,6 @@ class EditorMainWidget(PluginMainWidget):
         )
 
         # ---- Dockwidget and file dependent actions lists ----
-        self.dock_toolbar_actions = [
-            self.new_action,
-            self.open_action,
-            self.save_action,
-            self.save_all_action,
-            self.create_new_cell
-        ]
         self.pythonfile_dependent_actions = [
             self.blockcomment_action,
             self.unblockcomment_action,
@@ -916,12 +908,7 @@ class EditorMainWidget(PluginMainWidget):
         self.stack_menu_actions = [self.gotoline_action, self.workdir_action]
 
         # ---- Finish child widgets and actions setup ----
-        # TODO: Remove this after spyder-ide/spyder#19784 is merged
-        self.dock_toolbar = QToolBar(self)
-        add_actions(self.dock_toolbar, self.dock_toolbar_actions)
-
         layout = QVBoxLayout()
-        layout.addWidget(self.dock_toolbar)
 
         # Tabbed editor widget + Find/Replace widget
         editor_widgets = QWidget(self)
@@ -1009,10 +996,6 @@ class EditorMainWidget(PluginMainWidget):
         try:
             if self.dockwidget is None:
                 return
-            if self.dockwidget.isWindow():
-                self.dock_toolbar.show()
-            else:
-                self.dock_toolbar.hide()
             if state:
                 self.refresh()
             self.update_title()
@@ -1250,7 +1233,11 @@ class EditorMainWidget(PluginMainWidget):
         editor = self.get_current_editor()
         readwrite_editor = possible_text_widget == editor
 
-        if readwrite_editor and not editor.isReadOnly():
+        # We need the first validation to avoid a bug at startup. That probably
+        # happens when the menu is tried to be rendered automatically in some
+        # Linux distros.
+        # Fixes spyder-ide/spyder#22432
+        if editor is not None and readwrite_editor and not editor.isReadOnly():
             # Case where the current editor has the focus
             if not self.is_file_opened():
                 return
