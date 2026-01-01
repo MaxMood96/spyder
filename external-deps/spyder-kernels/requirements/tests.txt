@@ -16,3 +16,4 @@ django
 h5py
 pydicom
 anyio
+fonttools>=4.61.0 # not directly required, pinned by Snyk to avoid a vulnerability
